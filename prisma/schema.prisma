@@ -1,17 +1,471 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum Role {
+  USER
+  ADMIN
 }
 
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id          String       @id @default(uuid())
+  email       String       @unique
+  password    String
+  name        String?
+  role        Role         @default(USER)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  sessions    Session[]
+  enrollments Enrollment[]
+  progress    Progress[]
+  attempts    Attempt[]
+  assessmentAssignments AssessmentAssignment[]
+  interviewsAsCandidate   Interview[]              @relation("InterviewCandidate")
+  interviewsAsInterviewer  Interview[]              @relation("InterviewInterviewer")
+  interviewAvailabilities InterviewAvailability[]
+  interviewNotes          InterviewNote[]
+  interviewStatusChanges  InterviewStatusHistory[] @relation("StatusChangedBy")
+  feedbackGiven           Feedback[]               @relation("FeedbackAuthor")
+  feedbackReceived        Feedback[]               @relation("FeedbackSubject")
+  assignedLeads           Lead[]                   @relation("LeadAssignee")
+}
+
+model Session {
+  id                 String    @id @default(uuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hashedRefreshToken String    @unique
+  deviceInfo         String?
+  userAgent          String?
+  ipAddress          String?
+  expiresAt          DateTime
+  revokedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Program {
+  id          String       @id @default(uuid())
+  title       String
+  slug        String       @unique
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  modules     Module[]
+  enrollments Enrollment[]
+
+  @@index([isActive])
+}
+
+model Module {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  order       Int      @default(0)
+  programId   String
+  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tasks       Task[]
+
+  @@index([programId])
+  @@index([programId, order])
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  order       Int        @default(0)
+  moduleId    String
+  module      Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  progress    Progress[]
+
+  @@index([moduleId])
+  @@index([moduleId, order])
+}
+
+model Enrollment {
+  id         String           @id @default(uuid())
+  userId     String
+  programId  String
+  enrolledAt DateTime         @default(now())
+  status     EnrollmentStatus @default(ACTIVE)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program    Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programId])
+  @@index([programId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Progress {
+  id          String    @id @default(uuid())
+  userId      String
+  taskId      String
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId])
+  @@index([taskId])
+  @@index([userId])
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  COMPLETED
+  EXPIRED
+}
+
+model Assessment {
+  id              String                 @id @default(uuid())
+  title           String
+  description     String?
+  instructions    String?
+  durationMinutes Int?
+  passingScore    Int?
+  isPublished     Boolean                @default(false)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  questions       Question[]
+  attempts        Attempt[]
+  assignments     AssessmentAssignment[]
+  interviews      Interview[]
+
+  @@index([isPublished])
+  @@index([createdAt])
+}
+
+model Question {
+  id               String            @id @default(uuid())
+  assessmentId     String
+  assessment       Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  type             QuestionType
+  points           Int               @default(1)
+  order            Int               @default(0)
+  isPublished      Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  options          Option[]
+  attemptQuestions AttemptQuestion[]
+
+  @@index([assessmentId])
+  @@index([assessmentId, order])
+}
+
+model Option {
+  id             String          @id @default(uuid())
+  questionId     String
+  question       Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text           String
+  isCorrect      Boolean         @default(false)
+  order          Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  attemptOptions AttemptOption[]
+
+  @@index([questionId])
+  @@index([questionId, order])
+}
+
+model AssessmentAssignment {
+  id           String           @id @default(uuid())
+  assessmentId String
+  userId       String
+  assessment   Assessment       @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedAt   DateTime         @default(now())
+  dueAt        DateTime?
+  status       AssignmentStatus @default(ASSIGNED)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([assessmentId, userId, status])
+  @@index([userId])
+  @@index([assessmentId])
+  @@index([status])
+  @@index([dueAt])
+}
+
+model Attempt {
+  id                  String            @id @default(uuid())
+  userId              String
+  assessmentId        String
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessment          Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  status              AttemptStatus     @default(IN_PROGRESS)
+  startedAt           DateTime          @default(now())
+  submittedAt         DateTime?
+  expiresAt           DateTime?
+  totalQuestions      Int               @default(0)
+  totalPossiblePoints Int               @default(0)
+  score               Int               @default(0)
+  percentage          Float             @default(0)
+  level               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  attemptQuestions    AttemptQuestion[]
+
+  @@index([userId])
+  @@index([assessmentId])
+  @@index([status])
+  @@index([userId, assessmentId])
+  @@index([submittedAt])
+}
+
+model AttemptQuestion {
+  id                 String          @id @default(uuid())
+  attemptId          String
+  attempt            Attempt         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  originalQuestionId String
+  originalQuestion   Question?       @relation(fields: [originalQuestionId], references: [id], onDelete: Restrict)
+  titleSnapshot      String
+  typeSnapshot       QuestionType
+  pointsSnapshot     Int
+  orderSnapshot      Int
+  options            AttemptOption[]
+  answer             Answer?
+
+  @@unique([attemptId, originalQuestionId])
+  @@index([attemptId])
+  @@index([attemptId, orderSnapshot])
+  @@index([originalQuestionId])
+}
+
+model AttemptOption {
+  id                String          @id @default(uuid())
+  attemptQuestionId String
+  attemptQuestion   AttemptQuestion @relation(fields: [attemptQuestionId], references: [id], onDelete: Cascade)
+  originalOptionId  String
+  originalOption    Option?         @relation(fields: [originalOptionId], references: [id], onDelete: Restrict)
+  textSnapshot      String
+  orderSnapshot     Int
+  isCorrectSnapshot Boolean
+
+  @@unique([attemptQuestionId, originalOptionId])
+  @@index([attemptQuestionId])
+  @@index([originalOptionId])
+}
+
+model Answer {
+  id                String          @id @default(uuid())
+  attemptQuestionId String          @unique
+  attemptQuestion   AttemptQuestion @relation(fields: [attemptQuestionId], references: [id], onDelete: Cascade)
+  selectedOptionIds String[]
+  isCorrect         Boolean         @default(false)
+  earnedPoints      Int             @default(0)
+  answeredAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+
+enum InterviewStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum NoteVisibility {
+  PRIVATE
+  SHARED
+}
+
+model Interview {
+  id            String                  @id @default(uuid())
+  userId        String
+  interviewerId String
+  assessmentId  String?
+  title         String
+  description   String?
+  startAt       DateTime
+  endAt         DateTime
+  timezone      String
+  status        InterviewStatus         @default(PENDING)
+  meetingUrl    String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  user          User                    @relation("InterviewCandidate", fields: [userId], references: [id], onDelete: Cascade)
+  interviewer   User                    @relation("InterviewInterviewer", fields: [interviewerId], references: [id], onDelete: Cascade)
+  assessment    Assessment?             @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+  notes         InterviewNote[]
+  statusHistory InterviewStatusHistory[]
+  feedback      Feedback[]
+
+  @@index([userId])
+  @@index([interviewerId])
+  @@index([status])
+  @@index([startAt])
+  @@index([endAt])
+  @@index([userId, startAt])
+  @@index([interviewerId, startAt])
+  @@index([assessmentId])
+}
+
+model InterviewAvailability {
+  id            String   @id @default(uuid())
+  interviewerId String
+  interviewer   User     @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+  dayOfWeek     Int
+  startTime     String
+  endTime       String
+  timezone      String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([interviewerId])
+  @@index([interviewerId, isActive])
+  @@index([dayOfWeek])
+}
+
+model InterviewNote {
+  id          String         @id @default(uuid())
+  interviewId String
+  authorId    String
+  interview   Interview      @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content     String
+  visibility  NoteVisibility @default(SHARED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([interviewId])
+  @@index([authorId])
+  @@index([visibility])
+}
+
+model InterviewStatusHistory {
+  id          String          @id @default(uuid())
+  interviewId String
+  interview   Interview       @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  fromStatus  InterviewStatus
+  toStatus    InterviewStatus
+  changedById String
+  changedBy   User            @relation("StatusChangedBy", fields: [changedById], references: [id], onDelete: Cascade)
+  reason      String?
+  createdAt   DateTime        @default(now())
+
+  @@index([interviewId])
+  @@index([createdAt])
+  @@index([changedById])
+}
+
+// ─── Feedback ──────────────────────────────────────────────────────────────
+
+enum FeedbackCategory {
+  TECHNICAL
+  COMMUNICATION
+  PROBLEM_SOLVING
+  BEHAVIORAL
+  OVERALL
+}
+
+model Feedback {
+  id          String           @id @default(uuid())
+  authorId    String           // who submitted the feedback
+  subjectId   String           // the user being evaluated
+  interviewId String
+  category    FeedbackCategory
+  score       Int              // 1-5
+  comment     String?          @db.Text
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  author      User             @relation("FeedbackAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  subject     User             @relation("FeedbackSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  interview   Interview        @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@unique([authorId, interviewId, category])
+  @@index([subjectId])
+  @@index([interviewId])
+  @@index([authorId])
+  @@index([category])
+  @@index([createdAt])
+  @@index([subjectId, category])
+  @@index([subjectId, createdAt])
+}
+
+// ─── Leads ─────────────────────────────────────────────────────────────────
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+  REJECTED
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  SOCIAL_MEDIA
+  EMAIL_CAMPAIGN
+  DIRECT
+  OTHER
+}
+
+model Lead {
+  id           String     @id @default(uuid())
+  fullName     String
+  email        String
+  phone        String?
+  company      String?
+  jobTitle     String?
+  teamSize     Int?
+  message      String?    @db.Text
+  status       LeadStatus @default(NEW)
+  source       LeadSource @default(WEBSITE)
+  assignedToId String?
+  assignedTo   User?      @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  adminNotes   String?    @db.Text
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+  @@index([source])
+  @@index([assignedToId])
+  @@index([status, createdAt])
+}

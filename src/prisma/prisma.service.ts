@@ -13,10 +13,8 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
     if (!connectionString) {
       throw new Error('DATABASE_URL is not defined');
     }
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
 
+    const pool = new Pool({ connectionString });
     const adapter = new PrismaPg(pool);
 
     super({ adapter });

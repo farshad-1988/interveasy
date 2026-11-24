@@ -1,98 +1,293 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Interveasy API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+> **Interview Preparation Platform — Backend REST API**
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+A production-ready NestJS backend powering an end-to-end interview preparation platform. It handles authentication, learning content delivery, adaptive assessments, mock interview scheduling, analytics, and lead management — all secured behind JWT + CSRF guards and documented via Swagger.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Table of Contents
 
-## Project setup
+- [Tech Stack](#tech-stack)
+- [Architecture Overview](#architecture-overview)
+- [Quick Start](#quick-start)
+- [Environment Variables](#environment-variables)
+- [API Documentation](#api-documentation)
+- [Available Scripts](#available-scripts)
+- [API Modules Overview](#api-modules-overview)
+- [Database Schema Overview](#database-schema-overview)
+- [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Security](#security)
 
-```bash
-$ pnpm install
-```
+---
 
-## Compile and run the project
+## Tech Stack
 
-```bash
-# development
-$ pnpm run start
+| Layer | Technology |
+|---|---|
+| Framework | [NestJS](https://nestjs.com/) v11 (TypeScript) |
+| Database | PostgreSQL 15+ |
+| ORM | [Prisma](https://www.prisma.io/) v7 (with `@prisma/adapter-pg`) |
+| Authentication | JWT (access + refresh tokens via HTTP-only cookies) |
+| API Docs | Swagger / OpenAPI (`@nestjs/swagger`) |
+| Validation | `class-validator` + `class-transformer` |
+| Testing | Jest + Supertest |
+| Rate Limiting | `@nestjs/throttler` |
 
-# watch mode
-$ pnpm run start:dev
+---
 
-# production mode
-$ pnpm run start:prod
-```
+## Architecture Overview
 
-## Run tests
+The API follows a **modular, layered architecture** typical of enterprise NestJS applications. Each domain (Auth, Users, Learning, Assessments, Interviews, Feedback, Leads) lives in its own self-contained module with a **Controller → Service → Prisma** flow. Cross-cutting concerns — global exception filters, role guards, pagination utilities, CSRF protection — are centralised in `src/common`. Configuration and env-variable validation live in `src/config`. Prisma is exposed as a singleton through a shared `PrismaModule` that every domain module imports.
 
-```bash
-# unit tests
-$ pnpm run test
+---
 
-# e2e tests
-$ pnpm run test:e2e
+## Quick Start
 
-# test coverage
-$ pnpm run test:cov
-```
+### Prerequisites
 
-## Deployment
+- Node.js ≥ 20
+- pnpm (or npm/yarn — scripts use `pnpm exec` internally)
+- PostgreSQL 15+ **or** Docker
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Steps
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# 1. Clone the repository
+git clone <repo-url>
+cd interveasy
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env — set DATABASE_URL, JWT_SECRET, etc.
+
+# 4a. Start PostgreSQL via Docker (skip if you have a local instance)
+docker run --name nest_postgres \
+  -e POSTGRES_PASSWORD=yourpassword \
+  -p 5432:5432 \
+  -d postgres
+
+# 4b. (Optional) Enter the Postgres shell
+npm run enterpostgres
+
+# 5. Run database migrations
+npx prisma migrate deploy
+
+# 6. Generate Prisma Client
+npx prisma generate
+
+# 7. Seed the database with initial data
+npm run seed
+
+# 8. Start the development server (hot-reload)
+npm run start:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+The API will be available at **http://localhost:3000**.  
+Swagger UI will be at **http://localhost:3000/api/docs**.
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## Environment Variables
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Copy `.env.example` to `.env` and fill in the values below:
 
-## Support
+| Variable | Description | Example |
+|---|---|---|
+| `DATABASE_URL` | Full PostgreSQL connection string | `postgresql://postgres:pass@localhost:5432/interveasy?schema=public` |
+| `JWT_SECRET` | Secret key for signing JWTs (**min 32 chars in production**) | `a-very-long-random-string-32chars+` |
+| `JWT_ACCESS_EXPIRES_IN` | Access token TTL | `15m` |
+| `JWT_REFRESH_EXPIRES_IN` | Refresh token TTL | `7d` |
+| `COOKIE_SECURE` | Send cookies over HTTPS only (`true` in production) | `false` |
+| `COOKIE_SAMESITE` | Cookie SameSite policy (`lax` / `strict` / `none`) | `lax` |
+| `CORS_ORIGIN` | Allowed CORS origin(s), comma-separated | `http://localhost:3000` |
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+> **Warning** — Never commit your real `.env` file. Use `.env.example` as the template.
 
-## Stay in touch
+---
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## API Documentation
+
+Interactive Swagger UI is auto-generated and available at:
+
+```
+http://localhost:3000/api/docs
+```
+
+It includes every endpoint grouped by module, with request/response schemas, authentication requirements, and example payloads.
+
+---
+
+## Available Scripts
+
+| Script | Description |
+|---|---|
+| `npm run start:dev` | Start server in watch mode (hot-reload) |
+| `npm run build` | Compile TypeScript to `dist/` |
+| `npm run start:prod` | Run the compiled production build |
+| `npm run test` | Run all unit tests with Jest |
+| `npm run test:cov` | Run tests with coverage report |
+| `npm run test:e2e` | Run end-to-end tests (Supertest) |
+| `npm run seed` | Seed the database with initial/demo data |
+| `npm run createtable` | Create a new Prisma migration (`prisma migrate dev`) |
+| `npm run gui` | Open Prisma Studio (visual DB browser) |
+| `npm run lint` | Lint and auto-fix source files |
+| `npm run format` | Format source files with Prettier |
+
+---
+
+## API Modules Overview
+
+| Module | Prefix | Key Features |
+|---|---|---|
+| **Auth** | `/auth` | Register, login (JWT), refresh token rotation, logout, active session listing, CSRF protection |
+| **Users** | `/users` | CRUD operations, profile management, role assignment (ADMIN / INTERVIEWER / CANDIDATE) |
+| **Learning Platform** | `/programs`, `/modules`, `/tasks`, `/enrollments`, `/progress` | Programs → Modules → Tasks hierarchy, enrollment management, per-task progress tracking |
+| **Assessments** | `/assessments` | Question bank, multiple-choice & coding questions, scoring engine, skill-level calculation, attempt history |
+| **Mock Interviews** | `/interviews` | Interviewer availability slots, candidate scheduling, conflict detection, status lifecycle (PENDING → CONFIRMED → COMPLETED), session notes |
+| **Feedback & Analytics** | `/feedback` | Per-category feedback, aggregated performance scores, trend analytics, weak-area identification |
+| **Lead Management** | `/leads` | Demo request capture, duplicate detection, CRM-style status workflow, conversion analytics |
+
+---
+
+## Database Schema Overview
+
+### Core Entities & Relationships
+
+```
+User
+ ├── RefreshToken[]        (1-to-many: a user has many active sessions)
+ ├── Enrollment[]          (1-to-many: a user enrolls in many programs)
+ ├── Progress[]            (1-to-many: tracks completion per task)
+ ├── AssessmentAttempt[]   (1-to-many: assessment history)
+ ├── Interview[]           (as candidate — 1-to-many)
+ └── Interview[]           (as interviewer — 1-to-many)
+
+Program
+ └── Module[]
+      └── Task[]
+
+Assessment
+ ├── Question[]
+ └── AssessmentAttempt[]
+
+Interview
+ ├── InterviewerAvailability (linked slot)
+ └── InterviewNote[]
+
+Feedback  → linked to User + Interview
+Lead      → standalone CRM entity
+```
+
+### Key Design Decisions
+
+- **Soft cascade**: enrollments are deleted when a program is removed.
+- **Unique constraints**: one enrollment per user–program pair; one progress record per user–task pair.
+- **UTC timestamps**: all `scheduledAt` fields stored in UTC; conversion is the client's responsibility.
+- **Token rotation**: each refresh issues a new token and invalidates the old one, stored in the `RefreshToken` table.
+
+---
+
+## Project Structure
+
+```
+interveasy/
+├── prisma/
+│   ├── schema.prisma          # Prisma data model (source of truth for DB schema)
+│   ├── seed.ts                # Database seeder
+│   └── migrations/            # Auto-generated SQL migration history
+├── src/
+│   ├── main.ts                # Bootstrap: Swagger, cookies, CORS, validation pipe
+│   ├── app.module.ts          # Root module wiring all feature modules
+│   ├── auth/                  # JWT auth, refresh tokens, CSRF, session management
+│   │   ├── guards/            # JwtAuthGuard, CsrfGuard
+│   │   ├── strategies/        # Passport JWT strategy + JWT service
+│   │   ├── decorators/        # @CurrentUser()
+│   │   ├── dto/               # LoginDto, RegisterDto
+│   │   ├── types/             # Auth type definitions
+│   │   └── utils/             # Duration parser, token utilities
+│   ├── users/                 # User entity CRUD + role management
+│   ├── programs/              # Learning programs
+│   ├── modules/               # Program modules (chapters)
+│   ├── tasks/                 # Individual learning tasks
+│   ├── enrollments/           # User ↔ Program enrollment
+│   ├── progress/              # Per-task completion tracking
+│   ├── assessments/           # Question bank + scoring engine
+│   ├── scoring/               # Score calculation helpers
+│   ├── interviews/            # Mock interview scheduling & lifecycle
+│   ├── feedback/              # Structured feedback + analytics
+│   ├── leads/                 # CRM lead capture
+│   ├── prisma/                # PrismaService singleton + PrismaModule
+│   ├── config/                # Env validation (Joi/class-validator schema)
+│   ├── common/
+│   │   ├── filters/           # GlobalHttpExceptionFilter
+│   │   ├── guards/            # RolesGuard
+│   │   ├── decorators/        # @Roles()
+│   │   └── utils/             # Pagination helper
+│   └── generated/             # Auto-generated Prisma client types (do not edit)
+├── test/
+│   ├── app.e2e-spec.ts        # End-to-end test suite
+│   └── jest-e2e.json          # E2E Jest config
+├── .env.example               # Environment variable template
+├── .env                       # Local secrets — NOT committed
+├── package.json
+├── tsconfig.json
+└── nest-cli.json
+```
+
+---
+
+## Testing
+
+### Unit Tests
+
+```bash
+npm run test          # run all *.spec.ts files
+npm run test:cov      # with Istanbul coverage report (output: /coverage)
+npm run test:watch    # watch mode for TDD
+```
+
+### End-to-End Tests
+
+```bash
+npm run test:e2e      # Supertest against a running NestJS app instance
+```
+
+> **Tip** — Point E2E tests at a separate test database by overriding `DATABASE_URL` in a `.env.test` file and running:
+> ```bash
+> DATABASE_URL="postgresql://..." npm run test:e2e
+> ```
+
+### Coverage Goals
+
+| Area | Target |
+|---|---|
+| Services | ≥ 80 % line coverage |
+| Controllers | ≥ 70 % line coverage |
+| Guards / Strategies | ≥ 90 % line coverage |
+
+---
+
+## Security
+
+| Feature | Implementation |
+|---|---|
+| **Password hashing** | `bcrypt` with configurable salt rounds |
+| **JWT access tokens** | Short-lived (default 15 min), delivered as HTTP-only cookies |
+| **JWT refresh tokens** | Long-lived (default 7 d), stored hashed in DB; rotation on each refresh |
+| **CSRF protection** | Custom `CsrfGuard` — validates `x-csrf-token` header on state-changing requests |
+| **Role-based access** | `RolesGuard` + `@Roles()` decorator; roles: `ADMIN`, `INTERVIEWER`, `CANDIDATE` |
+| **Rate limiting** | `@nestjs/throttler` applied globally |
+| **Input validation** | `ValidationPipe` with `whitelist: true` and `forbidNonWhitelisted: true` |
+| **CORS** | Restricted to `CORS_ORIGIN` env value |
+| **HTTP-only cookies** | Prevents XSS-based token theft |
+
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+UNLICENSED — private project.
